@@ -1,0 +1,1 @@
+HOUSE = "haus10"
