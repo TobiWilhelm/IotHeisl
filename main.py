@@ -5,10 +5,17 @@ import config
 from net import WiFiManager, Tester, UdpMessenger
 import time
 from time import sleep_ms, ticks_ms, ticks_diff
+from mqtt_client import MqttLink
 
 DEFAULT_I2C_ADDR = 0x27
 
+def on_cmd(topic, payload):
+    # Example: payload might be JSON: {"relay":1,"on":true}
+    print("MQTT CMD", topic, payload)
+    handle_messages(topic, payload, None)  # if you adapt handler signature
+
 def handle_messages(topic, payload, addr):
+    print("in handle message")
     if topic == "haus1/Status":
         if payload == "OK":
             lcd.move_to(0, 0)
@@ -54,14 +61,14 @@ wifiTest = Tester()
 wifiTest.test_internet()
 wifiTest.test_dns()
 
-m = UdpMessenger(timeout_s=0.02)  # non-blocking
+device_id = config.HOUSE  # or a unique ID per ESP32
+mqtt = MqttLink(device_id)
+mqtt.set_cmd_handler(on_cmd)
+mqtt.connect()
+mqtt.publish_test("test from haus01")
 
-while True:
-    topic = config.HOUSE + "/Status"
-    payload = "OK"
-    print("[HB] send after", hb_age, "ms ->", topic, payload)
-    m.publish(topic, payload)
-    time.sleep(5)    
+
+m = UdpMessenger(timeout_s=0.02)  # non-blocking
 
 last_heartbeat = ticks_ms()
 last_alive = ticks_ms()
@@ -97,11 +104,6 @@ while True:
 
     # 3) Small sleep to yield CPU / WiFi stack
     sleep_ms(10)
-
-
-
-
-
 
 
 
