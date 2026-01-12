@@ -1,6 +1,6 @@
 # Haus1 IoT Node
 
-MicroPython firmware for an ESP32 that connects to Wi-Fi, talks to an MQTT broker (with UDP fallback).
+MicroPython firmware for an ESP32 that connects to Wi-Fi, talks to an MQTT broker, and shows status messages on a 16x2 I2C LCD. If MQTT is down, it uses a small UDP fallback.
 
 ## What you need
 - ESP32 dev board with MicroPython flashed
@@ -15,7 +15,7 @@ MicroPython firmware for an ESP32 that connects to Wi-Fi, talks to an MQTT broke
 ## Files
 - main.py: boots the device, connects Wi-Fi, runs heartbeat, switches between MQTT and UDP, updates the LCD
 - config.py: Wi-Fi, MQTT, UDP, and timing settings
-- device_config.py: per-device house name (keeps secrets out of the shared config)
+- device_config.py: per-device house name (keeps the device identity separate from shared config)
 - mqtt_client.py: thin wrapper around umqtt.simple with prebuilt topic names
 - net.py: Wi-Fi helper, connectivity tests, and UDP messenger
 - lcd_api.py / i2c_lcd.py: LCD driver for the 16x2 display
@@ -28,7 +28,15 @@ MicroPython firmware for an ESP32 that connects to Wi-Fi, talks to an MQTT broke
 5) You should see Wi-Fi connect, MQTT connect, and periodic test publishes
 
 ## How it talks
-- MQTT topics: base is haus/<HOUSE>. Commands arrive on haus/<HOUSE>/cmd. State goes to haus/<HOUSE>/state. Telemetry goes to haus/<HOUSE>/telemetry. A test heartbeat currently publishes to haus/99 from main.py.
-- Display updates: handle_messages now looks for topic "<house>/Status" with payloads OK / ERROR / WARNING and writes them to the LCD. Adjust the handler if you want more messages.
-- Fallback: if MQTT stays down for ~10s, messages fall back to UDP broadcast "<topic>;<payload>" on port 5005. When MQTT returns, it switches back automatically.
-- Heartbeat: every ~2s the loop sends a test message so you can see that the board is alive.
+- MQTT topics: base is haus/<HOUSEID>. Commands arrive on haus/<HOUSEID>/cmd. State goes to haus/<HOUSEID>/state. Telemetry goes to haus/<HOUSEID>/telemetry. A periodic test publish currently goes to haus/99 from main.py.
+- Display updates: the LCD updates when the handler receives topic "haus1/Status" with payload OK / ERROR / WARNING. With the current code this happens via UDP fallback (MQTT subscribes to haus/<HOUSEID>/cmd, which does not match haus1/Status).
+- Fallback: if MQTT stays down for ~10s, the loop listens for UDP broadcasts and the heartbeat is sent as UDP "<topic>;<payload>" on port 5005. It does not forward all MQTT topics over UDP.
+- Heartbeat: every ~2s the loop sends a test message; it is MQTT when connected, or UDP when in fallback.
+
+## UDP vs MQTT message format
+- UDP broadcast in this repo is a single text string built as "<topic>;<payload>". Example: "haus/01/Status;OK". It is sent to config.BROADCAST_IP:config.UDP_PORT and the receiver splits on the first ";" to recover topic and payload.
+- MQTT messages carry topic and payload as separate fields in the protocol. You publish to a broker, and subscribers receive the topic and payload without manual formatting.
+
+## Example status message (UDP)
+Send a UDP broadcast with the text "haus1/Status;OK" to port 5005.
+Example (Linux/macOS): echo -n "haus1/Status;OK" | nc -u -b 192.168.0.255 5005
