@@ -24,13 +24,13 @@ MicroPython firmware for an ESP32 that connects to Wi-Fi, talks to an MQTT broke
 5) You should see Wi-Fi connect, MQTT connect, and periodic test publishes
 
 ## How it talks
-- MQTT topics: base is haus/<HOUSEID>. Commands arrive on haus/<HOUSEID>/cmd. State goes to haus/<HOUSEID>/state. Telemetry goes to haus/<HOUSEID>/telemetry. A periodic test publish currently goes to haus/99 from main.py.
-- Display updates: the LCD updates when the handler receives topic "haus1/Status" with payload OK / ERROR / WARNING. With the current code this happens via UDP fallback (MQTT subscribes to haus/<HOUSEID>/cmd, which does not match haus1/Status).
-- Fallback: if MQTT stays down for ~10s, the loop listens for UDP broadcasts and the heartbeat is sent as UDP "<topic>;<payload>" on port 5005. It does not forward all MQTT topics over UDP.
+- MQTT topics: base is haus/\<HOUSEID\>. Commands arrive on haus/\<HOUSEID\>/cmd. State goes to haus/\<HOUSEID\>/state. Telemetry goes to haus/\<HOUSEID\>/telemetry. A periodic test publish currently goes to haus/99 from main.py.
+- Display updates: the LCD updates when the handler receives topic haus1/Status with payload OK / ERROR / WARNING. With the current code this happens via UDP fallback (MQTT subscribes to haus/\<HOUSEID\>/cmd, which does not match haus1/Status).
+- Fallback: if MQTT stays down for ~10s, the loop listens for UDP broadcasts and the heartbeat is sent as UDP {topic};{payload} on port 5005. It does not forward all MQTT topics over UDP.
 - Heartbeat: every ~2s the loop sends a test message; it is MQTT when connected, or UDP when in fallback.
 
 ## UDP vs MQTT message format
-- UDP broadcast in this repo is a single text string built as "<topic>;<payload>". Example: "haus/01/Status;OK". It is sent to config.BROADCAST_IP:config.UDP_PORT and the receiver splits on the first ";" to recover topic and payload.
+- UDP broadcast in this repo is a single text string built like the mqtt standard as {topic};{payload}. Example: haus/01/Status;OK. It is sent to "\<BROADCAST_IP\>:\<UDP_PORT\>" and the receiver splits on the first ; to recover topic and payload.
 - MQTT messages carry topic and payload as separate fields in the protocol. You publish to a broker, and subscribers receive the topic and payload without manual formatting.
 
 ## Example status message (UDP)
