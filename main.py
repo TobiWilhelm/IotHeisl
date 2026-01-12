@@ -73,37 +73,66 @@ m = UdpMessenger(timeout_s=0.02)  # non-blocking
 last_heartbeat = ticks_ms()
 last_alive = ticks_ms()
 loops = 0
+last_mqtt_try = 0
+mqtt_down_since = None
 
 while True:
     now = ticks_ms()
-    loops += 1
-    # 1) Poll incoming messages (fast, doesn’t block)
-    topic, payload, addr = m.recv_once(handle_messages)
-    # if got:
-    #     print("[UDP] rx handled at", now)
 
-    hb_age = ticks_diff(now, last_heartbeat)
-    if hb_age > 2000:
-        topic = config.HOUSE + "/Status"
-        payload = "OK"
-        print("[HB] send after", hb_age, "ms ->", topic, payload)
-        m.publish(topic, payload)
-        last_heartbeat = ticks_ms()  # reset using fresh time
+    if not mqtt.connected:
+        if ticks_diff(now, last_mqtt_try) > config.MQTT_RETRY_MS:
+            last_mqtt_try = now
+            try:
+                mqtt.connect()
+                mqtt_down_since = None
+                print("[MQTT] connected")
+            except Exception as e:
+                print("[MQTT] connect failed:", e)
+                if mqtt_down_since is None:
+                    mqtt_down_since = now
 
-    alive_age = ticks_diff(now, last_alive)
-    if alive_age > 1000:
-        print("[LOOP] alive. loops/s≈", loops, "ms_since_hb=", ticks_diff(now, last_heartbeat))
-        loops = 0
-        last_alive = now
+    if mqtt.connected:
+        try:
+            mqtt.loop_once() 
+        except Exception as e:
+            print("[MQTT] lost connection:", e)
+            mqtt.disconnect()
+            if mqtt_down_since is None:
+                mqtt_down_since = now
 
-    # 2) Do your normal work (LCD, sensors, logic, etc.)
-    #    Example: heartbeat send every 2 seconds
-    # if ticks_diff(ticks_ms(), last_heartbeat) > 2000:
-    #     m.publish(config.HOUSE + "/Status", "OK")
-    #     last_heartbeat = ticks_ms()
+    use_udp = False
+    if mqtt_down_since is not None and ticks_diff(now, mqtt_down_since) > config.UDP_FALLBACK_AFTER_MS:
+        use_udp = True
+    
+    if(use_udp):
+        loops += 1
+        # 1) Poll incoming messages (fast, doesn’t block)
+        topic, payload, addr = m.recv_once(handle_messages)
+        # if got:
+        #     print("[UDP] rx handled at", now)
 
-    # 3) Small sleep to yield CPU / WiFi stack
-    sleep_ms(10)
+        hb_age = ticks_diff(now, last_heartbeat)
+        if hb_age > 2000:
+            topic = config.HOUSE + "/Status"
+            payload = "OK"
+            print("[HB] send after", hb_age, "ms ->", topic, payload)
+            m.publish(topic, payload)
+            last_heartbeat = ticks_ms()  # reset using fresh time
+
+        alive_age = ticks_diff(now, last_alive)
+        if alive_age > 1000:
+            print("[LOOP] alive. loops/s≈", loops, "ms_since_hb=", ticks_diff(now, last_heartbeat))
+            loops = 0
+            last_alive = now
+
+        # 2) Do your normal work (LCD, sensors, logic, etc.)
+        #    Example: heartbeat send every 2 seconds
+        # if ticks_diff(ticks_ms(), last_heartbeat) > 2000:
+        #     m.publish(config.HOUSE + "/Status", "OK")
+        #     last_heartbeat = ticks_ms()
+
+        # 3) Small sleep to yield CPU / WiFi stack
+        sleep_ms(10)
 
 
 
