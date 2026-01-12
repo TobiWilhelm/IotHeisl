@@ -67,8 +67,7 @@ mqtt.set_cmd_handler(on_cmd)
 mqtt.connect()
 mqtt.publish_test("test from haus01")
 
-
-m = UdpMessenger(timeout_s=0.02)  # non-blocking
+udp = UdpMessenger(timeout_s=0.02)  # non-blocking
 
 last_heartbeat = ticks_ms()
 last_alive = ticks_ms()
@@ -79,8 +78,7 @@ mqtt_down_since = None
 while True:
     now = ticks_ms()
 
-    if not mqtt.connected:
-        if ticks_diff(now, last_mqtt_try) > config.MQTT_RETRY_MS:
+    if not mqtt.connected and ticks_diff(now, last_mqtt_try) > config.MQTT_RETRY_MS:
             last_mqtt_try = now
             try:
                 mqtt.connect()
@@ -93,7 +91,7 @@ while True:
 
     if mqtt.connected:
         try:
-            mqtt.loop_once() 
+            mqtt.loop_once() #get messages
         except Exception as e:
             print("[MQTT] lost connection:", e)
             mqtt.disconnect()
@@ -104,66 +102,27 @@ while True:
     if mqtt_down_since is not None and ticks_diff(now, mqtt_down_since) > config.UDP_FALLBACK_AFTER_MS:
         use_udp = True
     
-    if(use_udp):
-        loops += 1
-        # 1) Poll incoming messages (fast, doesn’t block)
-        topic, payload, addr = m.recv_once(handle_messages)
-        # if got:
-        #     print("[UDP] rx handled at", now)
+    if use_udp:
+        topic, payload, addr = udp.recv_once(handle_messages)
 
-        hb_age = ticks_diff(now, last_heartbeat)
-        if hb_age > 2000:
-            topic = config.HOUSE + "/Status"
-            payload = "OK"
-            print("[HB] send after", hb_age, "ms ->", topic, payload)
-            m.publish(topic, payload)
-            last_heartbeat = ticks_ms()  # reset using fresh time
+    hb_age = ticks_diff(now, last_heartbeat)
+    if hb_age > 2000:
+        topic = config.HOUSE + "/Status"
+        payload = "OK"
 
-        alive_age = ticks_diff(now, last_alive)
-        if alive_age > 1000:
-            print("[LOOP] alive. loops/s≈", loops, "ms_since_hb=", ticks_diff(now, last_heartbeat))
-            loops = 0
-            last_alive = now
+        if use_udp:
+            print("[HB][UDP] after", hb_age, "ms ->", topic, payload)
+            udp.publish(topic, payload)
+        else:
+            print("[HB][MQTT] after", hb_age, "ms ->", topic, payload)
+            try:
+                mqtt.publish_test("this is a test")   # or mqtt.publish_telemetry(...)
+            except Exception as e:
+                print("[MQTT] publish failed:", e)
+                mqtt.disconnect()
+                if mqtt_down_since is None:
+                    mqtt_down_since = now
 
-        # 2) Do your normal work (LCD, sensors, logic, etc.)
-        #    Example: heartbeat send every 2 seconds
-        # if ticks_diff(ticks_ms(), last_heartbeat) > 2000:
-        #     m.publish(config.HOUSE + "/Status", "OK")
-        #     last_heartbeat = ticks_ms()
+        last_heartbeat = now
 
-        # 3) Small sleep to yield CPU / WiFi stack
-        sleep_ms(10)
-
-
-
-# The following line of code should be tested
-# using the REPL:
-
-# 1. To print a string to the LCD:
-#    lcd.putstr('Hello world')
-# 2. To clear the display:
-#lcd.clear()
-# 3. To control the cursor position:
-# lcd.move_to(2, 1)
-# 4. To show the cursor:
-# lcd.show_cursor()
-# 5. To hide the cursor:
-#lcd.hide_cursor()
-# 6. To set the cursor to blink:
-#lcd.blink_cursor_on()
-# 7. To stop the cursor on blinking:
-#lcd.blink_cursor_off()
-# 8. To hide the currently displayed character:
-#lcd.display_off()
-# 9. To show the currently hidden character:
-#lcd.display_on()
-# 10. To turn off the backlight:
-#lcd.backlight_off()
-# 11. To turn ON the backlight:
-#lcd.backlight_on()
-# 12. To print a single character:
-#lcd.putchar('x')
-# 13. To print a custom character:
-#happy_face = bytearray([0x00, 0x0A, 0x00, 0x04, 0x00, 0x11, 0x0E, 0x00])
-#lcd.custom_char(0, happy_face)
-#lcd.putchar(chr(0))
+    sleep_ms(10)
