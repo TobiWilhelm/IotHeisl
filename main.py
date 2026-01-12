@@ -107,7 +107,7 @@ while True:
 
     hb_age = ticks_diff(now, last_heartbeat)
     if hb_age > 2000:
-        topic = config.HOUSE + "/Status"
+        topic = config.TOPIC_BASE + config.HOUSEID + "/Status"
         payload = "OK"
 
         if use_udp:
