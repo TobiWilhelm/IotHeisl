@@ -8,10 +8,6 @@ MicroPython firmware for an ESP32 that connects to Wi-Fi, talks to an MQTT broke
 - Wi-Fi network and MQTT broker reachable (defaults: 192.168.0.113:1883, user tobias; see config.py)
 - USB cable and a serial console to see logs at 115200 baud
 
-## Wiring
-- LCD SCL -> GPIO22, SDA -> GPIO21, VCC -> 3.3V, GND -> GND
-- Leave the backpack pull-ups in place; the code also enables internal pull-ups
-
 ## Files
 - main.py: boots the device, connects Wi-Fi, runs heartbeat, switches between MQTT and UDP, updates the LCD
 - config.py: Wi-Fi, MQTT, UDP, and timing settings
