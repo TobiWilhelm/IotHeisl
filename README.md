@@ -1,4 +1,4 @@
-# Haus1 IoT Node
+# IOT Project
 
 MicroPython firmware for an ESP32 that connects to Wi-Fi, talks to an MQTT broker, and shows status messages on a 16x2 I2C LCD. If MQTT is down, it uses a small UDP fallback.
 

@@ -1,9 +1,9 @@
-HOUSE = "unknown"
+HOUSEID = "unknown"
 try:
     import device_config
-    HOUSE = device_config.HOUSE
+    HOUSEID = device_config.HOUSEID
 except ImportError:
-    print("No device_config.py found, using default HOUSE:", HOUSE)
+    print("No device_config.py found, using default HOUSE:", HOUSEID)
 
 WIFI_SSID = "ZTE_AF5722"
 WIFI_PASSWORD = "59657247"
