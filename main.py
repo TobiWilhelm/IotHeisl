@@ -2,35 +2,18 @@ from time import sleep_ms, ticks_ms
 from machine import SoftI2C, Pin
 from i2c_lcd import I2cLcd
 import config
-import handlers
+from handlers import Handler
 from net import WiFiManager, Tester, UdpMessenger
 import time
 from time import sleep_ms, ticks_ms, ticks_diff
 from mqtt_client import MqttLink
 
-DEFAULT_I2C_ADDR = 0x27
-LED_PIN = 12
-led = Pin(LED_PIN, Pin.OUT)
-
 # Initialize the SCL/SDA pins and enable the internal pull-up.
-scl_pin = Pin(22, Pin.OUT, pull=Pin.PULL_UP)  # Enable the internal pull-up for GPIO22.
-sda_pin = Pin(21, Pin.OUT, pull=Pin.PULL_UP)  # Enable the internal pull-up for GPIO21.
-
-i2c = SoftI2C(scl=Pin(22), sda=Pin(21), freq=100000)
-
-devices = i2c.scan()
-if not devices:
-    print("No I2C device was detected! Check the wiring / power supply / pull-up resistor.")
-else:
-    print("Detected device address:", [hex(addr) for addr in devices])  # Output hexadecimal address‌:ml-citation{ref="3,8" data="citationList"}
-
-lcd = I2cLcd(i2c, DEFAULT_I2C_ADDR, 2, 16)
-handlers.init(lcd, led, "haus1/Status")
+commandHandler = Handler()
 
 def on_cmd(topic, payload):
     print("MQTT CMD", topic, payload)
-    handlers.handle_messages(topic, payload, None) 
-
+    commandHandler.handle_messages(topic, payload, None)
 
 wifi = WiFiManager(config.WIFI_SSID, config.WIFI_PASSWORD)
 wifi.connect()
@@ -86,7 +69,7 @@ while True:
         use_udp = True
     
     if use_udp:
-        topic, payload, addr = udp.recv_once(handlers.handle_messages)
+        topic, payload, addr = udp.recv_once(commandHandler.handle_messages)
 
     hb_age = ticks_diff(now, last_heartbeat)
     if hb_age > 2000:
