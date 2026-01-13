@@ -2,15 +2,20 @@ import ujson
 from time import sleep_ms
 from machine import SoftI2C, Pin, PWM
 from i2c_lcd import I2cLcd
+import neopixel
 
 DEFAULT_I2C_ADDR = 0x27
+
 LED_PIN = 12
+
 FAN_DUTY_LOW = 600
 FAN_DUTY_MED = 700
 FAN_DUTY_HIGH = 850
 FAN_PULSE_MS = 500
-INA =PWM(Pin(19,Pin.OUT),10000) #INA corresponds to IN+
-INB =PWM(Pin(18,Pin.OUT),10000) #INB corresponds to IN- 
+INA = PWM(Pin(19, Pin.OUT), 10000) #INA corresponds to IN+
+INB = PWM(Pin(18, Pin.OUT), 10000) #INB corresponds to IN- 
+
+RGB_PIN = 26
 
 class Handler:
     def __init__(self):
@@ -25,6 +30,7 @@ class Handler:
         else:
             print("Detected device address:", [hex(addr) for addr in devices])  # Output hexadecimal address‌:ml-citation{ref="3,8" data="citationList"}
 
+        self.neo_pixel = neopixel.NeoPixel(Pin(RGB_PIN, Pin.OUT), 4) 
         self.lcd = I2cLcd(i2c, DEFAULT_I2C_ADDR, 2, 16)
         self.led = Pin(LED_PIN, Pin.OUT)
         self.fan_duty = FAN_DUTY_MED
@@ -46,6 +52,16 @@ class Handler:
             peripheral = cmd.get("peripheral")
             task = cmd.get("task")
             value = cmd.get("value")
+
+            if peripheral == "rgb":
+                if task == "on":
+                    colors = [[100,100,100]]
+                    self.neo_pixel[0] = colors[0]
+                    self.neo_pixel.write()
+                elif task == "off":
+                    colors = [[0,0,0]]
+                    self.neo_pixel[0] = colors[0]
+                    self.neo_pixel.write()
 
             if peripheral == "fan":
                 if task == "low":
