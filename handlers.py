@@ -1,9 +1,16 @@
 import ujson
-from machine import SoftI2C, Pin
+from time import sleep_ms
+from machine import SoftI2C, Pin, PWM
 from i2c_lcd import I2cLcd
 
 DEFAULT_I2C_ADDR = 0x27
 LED_PIN = 12
+FAN_DUTY_LOW = 600
+FAN_DUTY_MED = 700
+FAN_DUTY_HIGH = 850
+FAN_PULSE_MS = 500
+INA =PWM(Pin(19,Pin.OUT),10000) #INA corresponds to IN+
+INB =PWM(Pin(18,Pin.OUT),10000) #INB corresponds to IN- 
 
 class Handler:
     def __init__(self):
@@ -20,6 +27,7 @@ class Handler:
 
         self.lcd = I2cLcd(i2c, DEFAULT_I2C_ADDR, 2, 16)
         self.led = Pin(LED_PIN, Pin.OUT)
+        self.fan_duty = FAN_DUTY_MED
         self.status_topic = "haus1/Status"
 
     def handle_messages(self, topic, payload, addr):
@@ -39,6 +47,40 @@ class Handler:
             task = cmd.get("task")
             value = cmd.get("value")
 
+            if peripheral == "fan":
+                if task == "low":
+                    self.fan_duty = FAN_DUTY_LOW
+                    INA.duty(self.fan_duty)
+                    INB.duty(0)
+                elif task == "med":
+                    self.fan_duty = FAN_DUTY_MED
+                    INA.duty(self.fan_duty)
+                    INB.duty(0)
+                elif task == "high":
+                    self.fan_duty = FAN_DUTY_HIGH
+                    INA.duty(self.fan_duty)
+                    INB.duty(0)
+                elif task == "on":
+                    duty = self.fan_duty or FAN_DUTY_MED
+                    INA.duty(duty)
+                    INB.duty(0)
+                elif task == "off":
+                    INA.duty(0)
+                    INB.duty(0)
+                elif task == "pulse":
+                    count = 0
+                    pulses = int(value)
+                    while count < pulses:
+                        INA.duty(FAN_DUTY_HIGH)
+                        INB.duty(0)
+                        sleep_ms(FAN_PULSE_MS)
+                        INA.duty(0)
+                        INB.duty(0)
+                        sleep_ms(FAN_PULSE_MS)
+                        count+=1
+                else:
+                    print("Unknown task:", task)
+                return
             if peripheral == "led":
                 if task == "on":
                     self.led.value(1)
@@ -51,6 +93,7 @@ class Handler:
                 else:
                     print("Unknown task:", task)
                 return
+
 
             print("Unknown peripheral:", peripheral)
             return
