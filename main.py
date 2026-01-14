@@ -32,6 +32,7 @@ mqtt = MqttLink(device_id)
 mqtt.set_cmd_handler(on_cmd)
 mqtt.connect()
 mqtt.publish_test("test from haus01")
+commandHandler.set_state_publisher(mqtt.publish_state)
 
 udp = UdpMessenger(timeout_s=0.02)  # non-blocking
 

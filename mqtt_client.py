@@ -1,5 +1,4 @@
-import time
-import config
+import time, config, ujson
 from umqtt.simple import MQTTClient
 
 class MqttLink:

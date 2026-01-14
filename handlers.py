@@ -1,8 +1,7 @@
-import ujson
 from time import sleep_ms
 from machine import SoftI2C, Pin, PWM
 from i2c_lcd import I2cLcd
-import neopixel
+import neopixel, config, ujson, network, time, dht
 
 DEFAULT_I2C_ADDR = 0x27
 
@@ -17,8 +16,21 @@ INB = PWM(Pin(18, Pin.OUT), 10000) #INB corresponds to IN-
 
 RGB_PIN = 26
 
+DHT = dht.DHT11(Pin(17))
+
 class Handler:
     def __init__(self):
+
+        self.state = {                                                                                                                                                                                                                                                                                               
+            "house": config.HOUSEID,                                                                                                                                                                                                                                                                                 
+            "led": {"state": "off"},
+            "fan": {"rpm": 0},
+            "rgb": {"state": "off"},
+            "temp": None,
+            "rssi": None,
+        }
+        self._publish_state = None
+
         scl_pin = Pin(22, Pin.OUT, pull=Pin.PULL_UP)  # Enable the internal pull-up for GPIO22.
         sda_pin = Pin(21, Pin.OUT, pull=Pin.PULL_UP)  # Enable the internal pull-up for GPIO21.
 
@@ -54,16 +66,29 @@ class Handler:
             value = cmd.get("value")
 
             if peripheral == "rgb":
+                state = "off"
+                skip_state = False
                 if task == "on":
                     colors = [[100,100,100]]
                     self.neo_pixel[0] = colors[0]
                     self.neo_pixel.write()
+                    state = "on"
                 elif task == "off":
                     colors = [[0,0,0]]
                     self.neo_pixel[0] = colors[0]
                     self.neo_pixel.write()
+                    state = "off"
+                else:
+                    print("Unknown task:", task)
+                    skip_state = True
+                
+                if not skip_state:
+                    self.state["rgb"]["state"] = state 
+                    self._emit_state()
+                return
 
             if peripheral == "fan":
+                skip_state = False
                 if task == "low":
                     self.fan_duty = FAN_DUTY_LOW
                     INA.duty(self.fan_duty)
@@ -80,7 +105,9 @@ class Handler:
                     duty = self.fan_duty or FAN_DUTY_MED
                     INA.duty(duty)
                     INB.duty(0)
+                    self.fan_duty = duty
                 elif task == "off":
+                    self.fan_duty = 0
                     INA.duty(0)
                     INB.duty(0)
                 elif task == "pulse":
@@ -96,6 +123,11 @@ class Handler:
                         count+=1
                 else:
                     print("Unknown task:", task)
+                    skip_state = True
+
+                if not skip_state:
+                    self.state["fan"]["rpm"] = self.fan_duty
+                    self._emit_state()
                 return
             if peripheral == "led":
                 if task == "on":
@@ -108,6 +140,9 @@ class Handler:
                     self.led.value(0 if self.led.value() else 1)
                 else:
                     print("Unknown task:", task)
+
+                self.state["led"]["state"] = "on" if self.led.value() else "off"
+                self._emit_state()
                 return
 
 
@@ -125,9 +160,15 @@ class Handler:
                 self.lcd.move_to(0, 0)
                 self.lcd.putstr("Status Haus 1: WARNING")
 
-        # if topic == "haus1/load":
-        #     load = int(payload)
-        #     if load > 80:
-        #         print("High load, reacting...")
-        # elif topic == "haus2/alerts":
-        #     print("Alert from house2:", payload)
+    def set_state_publisher(self, fn):
+        self._publish_state = fn
+
+    def _emit_state(self):
+        self.state["ts"] = int(time.time())
+        wlan = network.WLAN(network.STA_IF)
+        self.state["rssi"] = wlan.status("rssi") if wlan.isconnected() else None
+        DHT.measure()
+        self.state["temp"] = DHT.temperature()
+
+        if self._publish_state:
+            self._publish_state(ujson.dumps(self.state))
