@@ -1,7 +1,7 @@
 from time import sleep_ms
 from machine import SoftI2C, Pin, PWM
 from i2c_lcd import I2cLcd
-import neopixel, config, ujson, network, time, dht
+import neopixel, config, ujson, network, time, dht, ntptime
 
 DEFAULT_I2C_ADDR = 0x27
 
@@ -23,9 +23,9 @@ class Handler:
 
         self.state = {                                                                                                                                                                                                                                                                                               
             "house": config.HOUSEID,                                                                                                                                                                                                                                                                                 
-            "led": {"state": "off"},
-            "fan": {"rpm": 0},
-            "rgb": {"state": "off"},
+            "led_state": "off",
+            "fan_rpm": 0,
+            "rgb_state": "off",
             "temp": None,
             "rssi": None,
         }
@@ -83,7 +83,7 @@ class Handler:
                     skip_state = True
                 
                 if not skip_state:
-                    self.state["rgb"]["state"] = state 
+                    self.state["rgb_state"] = state 
                     self._emit_state()
                 return
 
@@ -126,7 +126,7 @@ class Handler:
                     skip_state = True
 
                 if not skip_state:
-                    self.state["fan"]["rpm"] = self.fan_duty
+                    self.state["fan_rpm"] = self.fan_duty
                     self._emit_state()
                 return
             if peripheral == "led":
@@ -141,7 +141,7 @@ class Handler:
                 else:
                     print("Unknown task:", task)
 
-                self.state["led"]["state"] = "on" if self.led.value() else "off"
+                self.state["led_state"] = "on" if self.led.value() else "off"
                 self._emit_state()
                 return
 
@@ -164,7 +164,8 @@ class Handler:
         self._publish_state = fn
 
     def _emit_state(self):
-        self.state["ts"] = int(time.time())
+        ntptime.settime()
+        self.state["ts"] = int((time.time() + 946684800) * 1000)
         wlan = network.WLAN(network.STA_IF)
         self.state["rssi"] = wlan.status("rssi") if wlan.isconnected() else None
         DHT.measure()

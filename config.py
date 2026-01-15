@@ -17,7 +17,7 @@ MQTT_USER = "tobias"
 MQTT_PASS = "abc.123"
 MQTT_KEEPALIVE = 30  # seconds
 
-TOPIC_BASE = "haus"
+TOPIC_BASE = "house"
 
 MQTT_RETRY_MS = 3000
 UDP_FALLBACK_AFTER_MS = 10000

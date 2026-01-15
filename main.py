@@ -81,9 +81,10 @@ while True:
             print("[HB][UDP] after", hb_age, "ms ->", topic, payload)
             udp.publish(topic, payload)
         else:
-            print("[HB][MQTT] after", hb_age, "ms ->", topic, payload)
+            # print("[HB][MQTT] after", hb_age, "ms ->", topic, payload)
             try:
-                mqtt.publish_test("this is a test")   # or mqtt.publish_telemetry(...)
+                # mqtt.publish_test("this is a test")   # or mqtt.publish_telemetry(...)
+                pass
             except Exception as e:
                 print("[MQTT] publish failed:", e)
                 mqtt.disconnect()

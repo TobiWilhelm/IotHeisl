@@ -39,12 +39,13 @@ class MqttLink:
         self.client.connect()
         self.client.subscribe(self.topic_cmd)
         # Retained "online" state is very handy for dashboards
-        self.publish_state('{"online":true}', retain=True)
+        # self.publish_state('{"online":true}', retain=True)
         self.connected = True
 
     def disconnect(self):
         try:
-            self.publish_state('{"online":false}', retain=True)
+            # self.publish_state('{"online":false}', retain=True)
+            pass
         except Exception:
             pass
         try:
@@ -64,6 +65,7 @@ class MqttLink:
         self.client.publish(self.topic_tele, payload, retain=retain)
 
     def publish_state(self, payload: str, retain=True):
+        print("MQTT MSG: " + self.topic_state + payload)
         self.client.publish(self.topic_state, payload, retain=retain)
 
     def publish_test(self, payload: str, retain=True):
