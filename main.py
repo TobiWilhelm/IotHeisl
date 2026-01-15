@@ -9,6 +9,12 @@ from time import sleep_ms, ticks_ms, ticks_diff
 from mqtt_client import MqttLink
 from display import Display
 
+BUTTON_PIN = 16
+BUTTON_DEBOUNCE_MS = 15
+button1 = Pin(BUTTON_PIN, Pin.IN, Pin.PULL_UP)
+button_pressed = False
+button_press_ms = ticks_ms()
+
 # Testd
 displayWriter = Display()
 displayWriter.write_line(0,"Booting...")
@@ -35,7 +41,7 @@ device_id = config.HOUSEID  # or a unique ID per ESP32
 mqtt = MqttLink(device_id)
 mqtt.set_cmd_handler(on_cmd)
 mqtt.connect()
-mqtt.publish_test("test from haus01")
+# mqtt.publish_test("test from haus01")
 commandHandler.set_state_publisher(mqtt.publish_state)
 
 udp = UdpMessenger(timeout_s=0.02)  # non-blocking
@@ -46,6 +52,7 @@ loops = 0
 last_mqtt_try = 0
 mqtt_down_since = None
 last_state_emit = ticks_ms()
+button_press_count = 0
 
 while True:
     now = ticks_ms()
@@ -79,6 +86,18 @@ while True:
     if use_udp:
         displayWriter.write_lines("house" + config.HOUSEID + " " + "Mode:","UDP local")
         topic, payload, addr = udp.recv_once(commandHandler.handle_messages)
+
+    btn_val = button1.value()
+    if not button_pressed and btn_val == 0:
+        button_pressed = True
+        button_press_ms = now
+    elif button_pressed and btn_val == 1:
+        if ticks_diff(now, button_press_ms) > BUTTON_DEBOUNCE_MS and (button_press_count % 2):
+            commandHandler.button_toggle_led()
+        else:
+            commandHandler.button_toggle_rgb()
+        button_pressed = False
+        button_press_count += 1
 
     hb_age = ticks_diff(now, last_heartbeat)
     if hb_age > 2000:

@@ -34,7 +34,58 @@ class Handler:
         self.led = Pin(LED_PIN, Pin.OUT)
         self.fan_duty = FAN_DUTY_MED
         self.status_topic = "haus1/Status"
+        self.set_safe_state()
         
+    def set_safe_state(self):
+        self.led.value(0)
+        self.neo_pixel[0] = [0, 0, 0]
+        self.neo_pixel.write()
+        INA.duty(0)
+        INB.duty(0)
+        self.fan_duty = 0
+        self.state["led_state"] = "off"
+        self.state["rgb_state"] = "off"
+        self.state["fan_rpm"] = 0
+
+    def set_rgb_state(self, state):
+        if state == "on":
+            self.neo_pixel[0] = [100, 100, 100]
+            self.neo_pixel.write()
+        elif state == "off":
+            self.neo_pixel[0] = [0, 0, 0]
+            self.neo_pixel.write()
+        else:
+            print("Unknown rgb state:", state)
+            return
+
+        self.state["rgb_state"] = state
+        self._emit_state()
+
+    def set_led_state(self, state):
+        if state == "on":
+            self.led.value(1)
+        elif state == "off":
+            self.led.value(0)
+        elif state == "toggle":
+            self.led.value(0 if self.led.value() else 1)
+        else:
+            print("Unknown led state:", state)
+            return
+    
+        self.state["led_state"] = "on" if self.led.value() else "off"
+        self._emit_state()
+        
+
+    def button_toggle_rgb(self):
+        current = self.state.get("rgb_state", "off")
+        new_state = "off" if current == "on" else "on"
+        self.set_rgb_state(new_state)
+    
+    def button_toggle_led(self):
+        current = self.state.get("led_state", "off")
+        new_state = "off" if current == "on" else "on"
+        self.set_led_state(new_state)
+
     def handle_messages(self, topic, payload, addr):
         if self.display is None or self.led is None or self.status_topic is None:
             print("Handlers not initialized")
@@ -53,25 +104,12 @@ class Handler:
             value = cmd.get("value")
 
             if peripheral == "rgb":
-                state = "off"
-                skip_state = False
                 if task == "on":
-                    colors = [[100,100,100]]
-                    self.neo_pixel[0] = colors[0]
-                    self.neo_pixel.write()
-                    state = "on"
+                    self.set_rgb_state("on")
                 elif task == "off":
-                    colors = [[0,0,0]]
-                    self.neo_pixel[0] = colors[0]
-                    self.neo_pixel.write()
-                    state = "off"
+                    self.set_rgb_state("off")
                 else:
                     print("Unknown task:", task)
-                    skip_state = True
-                
-                if not skip_state:
-                    self.state["rgb_state"] = state 
-                    self._emit_state()
                 return
 
             if peripheral == "fan":
@@ -116,20 +154,16 @@ class Handler:
                     self.state["fan_rpm"] = self.fan_duty
                     self._emit_state()
                 return
+            
             if peripheral == "led":
                 if task == "on":
-                    self.led.value(1)
+                    self.set_led_state("on")
                 elif task == "off":
-                    self.led.value(0)
-                elif task == "set":
-                    self.led.value(1 if value else 0)
+                    self.set_led_state("off")
                 elif task == "toggle":
-                    self.led.value(0 if self.led.value() else 1)
+                    self.set_led_state("toggle")
                 else:
                     print("Unknown task:", task)
-
-                self.state["led_state"] = "on" if self.led.value() else "off"
-                self._emit_state()
                 return
 
 
