@@ -7,8 +7,12 @@ from net import WiFiManager, Tester, UdpMessenger
 import time
 from time import sleep_ms, ticks_ms, ticks_diff
 from mqtt_client import MqttLink
+from display import Display
 
-# Initialize the SCL/SDA pins and enable the internal pull-up.
+# Testd
+displayWriter = Display()
+displayWriter.write_line(0,"Booting...")
+
 commandHandler = Handler()
 
 def on_cmd(topic, payload):
@@ -41,6 +45,7 @@ last_alive = ticks_ms()
 loops = 0
 last_mqtt_try = 0
 mqtt_down_since = None
+last_state_emit = ticks_ms()
 
 while True:
     now = ticks_ms()
@@ -57,6 +62,8 @@ while True:
                     mqtt_down_since = now
 
     if mqtt.connected:
+        # displayWriter.clear()
+        displayWriter.write_lines("house" + config.HOUSEID + " " + "Mode:","MQTT Cloud")
         try:
             mqtt.loop_once() #get messages
         except Exception as e:
@@ -70,6 +77,7 @@ while True:
         use_udp = True
     
     if use_udp:
+        displayWriter.write_lines("house" + config.HOUSEID + " " + "Mode:","UDP local")
         topic, payload, addr = udp.recv_once(commandHandler.handle_messages)
 
     hb_age = ticks_diff(now, last_heartbeat)
@@ -92,5 +100,10 @@ while True:
                     mqtt_down_since = now
 
         last_heartbeat = now
+
+    state_age = ticks_diff(now, last_state_emit)
+    if state_age > 10000:
+        commandHandler._emit_state()
+        last_state_emit = now
 
     sleep_ms(10)

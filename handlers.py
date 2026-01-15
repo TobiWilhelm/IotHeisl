@@ -1,9 +1,7 @@
 from time import sleep_ms
-from machine import SoftI2C, Pin, PWM
-from i2c_lcd import I2cLcd
+from machine import Pin, PWM
+from display import Display
 import neopixel, config, ujson, network, time, dht, ntptime
-
-DEFAULT_I2C_ADDR = 0x27
 
 LED_PIN = 12
 
@@ -31,25 +29,14 @@ class Handler:
         }
         self._publish_state = None
 
-        scl_pin = Pin(22, Pin.OUT, pull=Pin.PULL_UP)  # Enable the internal pull-up for GPIO22.
-        sda_pin = Pin(21, Pin.OUT, pull=Pin.PULL_UP)  # Enable the internal pull-up for GPIO21.
-
-        i2c = SoftI2C(scl=Pin(22), sda=Pin(21), freq=100000)
-
-        devices = i2c.scan()
-        if not devices:
-            print("No I2C device was detected! Check the wiring / power supply / pull-up resistor.")
-        else:
-            print("Detected device address:", [hex(addr) for addr in devices])  # Output hexadecimal address‌:ml-citation{ref="3,8" data="citationList"}
-
-        self.neo_pixel = neopixel.NeoPixel(Pin(RGB_PIN, Pin.OUT), 4) 
-        self.lcd = I2cLcd(i2c, DEFAULT_I2C_ADDR, 2, 16)
+        self.neo_pixel = neopixel.NeoPixel(Pin(RGB_PIN, Pin.OUT), 4)
+        self.display = Display()
         self.led = Pin(LED_PIN, Pin.OUT)
         self.fan_duty = FAN_DUTY_MED
         self.status_topic = "haus1/Status"
-
+        
     def handle_messages(self, topic, payload, addr):
-        if self.lcd is None or self.led is None or self.status_topic is None:
+        if self.display is None or self.led is None or self.status_topic is None:
             print("Handlers not initialized")
             return
 
@@ -150,21 +137,17 @@ class Handler:
             return
 
         if topic == self.status_topic:
-            if payload == "OK":
-                self.lcd.move_to(0, 0)
-                self.lcd.putstr("Status Haus 1: OK")
-            if payload == "ERROR":
-                self.lcd.move_to(0, 0)
-                self.lcd.putstr("Status Haus 1: ERROR")
-            if payload == "WARNING":
-                self.lcd.move_to(0, 0)
-                self.lcd.putstr("Status Haus 1: WARNING")
+            if payload in ("OK", "ERROR", "WARNING"):
+                self.display.write_wrapped("Status Haus 1: " + payload)
 
     def set_state_publisher(self, fn):
         self._publish_state = fn
 
     def _emit_state(self):
-        ntptime.settime()
+        try:
+            ntptime.settime()
+        except OSError as e:
+            print("NTP sync failed:", e)
         self.state["ts"] = int((time.time() + 946684800) * 1000)
         wlan = network.WLAN(network.STA_IF)
         self.state["rssi"] = wlan.status("rssi") if wlan.isconnected() else None

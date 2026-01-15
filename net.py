@@ -6,6 +6,7 @@ import config
 from machine import SoftI2C, Pin 
 from i2c_lcd import I2cLcd 
 import errno
+from display import Display
 
 DEFAULT_I2C_ADDR = 0x27
 scl_pin = Pin(22, Pin.OUT, pull=Pin.PULL_UP)  # Enable the internal pull-up for GPIO22.
@@ -20,6 +21,7 @@ else:
     print("Detected device address:", [hex(addr) for addr in devices])  # Output hexadecimal address‌:ml-citation{ref="3,8" data="citationList"}
 
 lcd = I2cLcd(i2c, DEFAULT_I2C_ADDR, 2, 16)
+displayWriter = Display()
 
 
 class UdpMessenger:
@@ -76,6 +78,8 @@ class Tester:
         pass
 
     def test_internet(self, host="1.1.1.1", port=53, timeout=3):
+        line_two = (host + " " +  str(port))
+        displayWriter.write_lines("Test Connect:", line_two)
         try:
             addr = socket.getaddrinfo(host, port)[0][-1]
             print("Connecting to", addr, "...")
@@ -90,6 +94,7 @@ class Tester:
             return False
         
     def test_dns(self, host="google.com"):
+        displayWriter.write_lines("Test DNS:", host)
         try:
             print("Resolving", host, "...")
             addr_info = socket.getaddrinfo(host, 80)
