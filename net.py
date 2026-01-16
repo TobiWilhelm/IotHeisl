@@ -37,8 +37,21 @@ class UdpMessenger:
         #bind for recieving
         self.s.bind(("", config.UDP_PORT))  # "" = all interfaces
         self.s.settimeout(timeout_s)
+        self.is_udp_mode = False
+
+    def update_udp_mode(self, val:bool):
+        self.is_udp_mode = val
     
-    def publish(self, topic, payload):
+    def get_udp_mode(self):
+        return self.is_udp_mode
+    
+    def publish_state(self, payload):
+        topic = config.TOPIC_BASE + "/" +  config.HOUSEID + "/state"
+        msg = "{};{}".format(topic, payload)
+        self.s.sendto(msg.encode(), (config.BROADCAST_IP, config.UDP_PORT))
+        print("Sent:", msg)
+    def publish_status(self, payload):
+        topic = config.TOPIC_BASE + "/" +  config.HOUSEID + "/Status"
         msg = "{};{}".format(topic, payload)
         self.s.sendto(msg.encode(), (config.BROADCAST_IP, config.UDP_PORT))
         print("Sent:", msg)
@@ -77,9 +90,10 @@ class Tester:
     def __init__(self):
         pass
 
-    def test_internet(self, host="1.1.1.1", port=53, timeout=3):
+    def test_internet(self, host="1.1.1.1", port=53, timeout=3, display=True):
         line_two = (host + " " +  str(port))
-        displayWriter.write_lines("Test Connect:", line_two)
+        if display:
+            displayWriter.write_lines("Test Connect:", line_two)
         try:
             addr = socket.getaddrinfo(host, port)[0][-1]
             print("Connecting to", addr, "...")
@@ -93,8 +107,9 @@ class Tester:
             print("Internet test failed:", e)
             return False
         
-    def test_dns(self, host="google.com"):
-        displayWriter.write_lines("Test DNS:", host)
+    def test_dns(self, host="google.com", display=True):
+        if display:
+            displayWriter.write_lines("Test DNS:", host)
         try:
             print("Resolving", host, "...")
             addr_info = socket.getaddrinfo(host, 80)

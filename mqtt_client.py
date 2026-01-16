@@ -34,9 +34,10 @@ class MqttLink:
         if self._cmd_handler:
             self._cmd_handler(t, m)
 
-    def connect(self):
+    def connect(self, timeout_s=3):
+        print("connect mqtt")
         self.client.set_callback(self._on_msg)
-        self.client.connect()
+        self.client.connect(timeout=timeout_s)
         self.client.subscribe(self.topic_cmd)
         # Retained "online" state is very handy for dashboards
         # self.publish_state('{"online":true}', retain=True)
@@ -65,8 +66,14 @@ class MqttLink:
         self.client.publish(self.topic_tele, payload, retain=retain)
 
     def publish_state(self, payload: str, retain=True):
+        if not self.connected:
+            return
         print("MQTT MSG: " + self.topic_state + payload)
-        self.client.publish(self.topic_state, payload, retain=retain)
+        try:
+            self.client.publish(self.topic_state, payload, retain=retain)
+        except OSError:
+            self.connected = False
+            raise
 
     def publish_test(self, payload: str, retain=True):
         print("MQTT MSG: " + payload)
