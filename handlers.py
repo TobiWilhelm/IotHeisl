@@ -16,7 +16,7 @@ RGB_PIN = 26
 
 DHT = dht.DHT11(Pin(17))
 
-MAX_ACTIVE_PERIPHERALS = 6
+MAX_ACTIVE_PERIPHERALS = 3
 PEER_STATE_TTL_MS = 25000
 REJECT_DISPLAY_MS = 2000
 
@@ -79,7 +79,7 @@ class Handler:
             now = ticks_ms()
         total = 0
         total += 1 if self.state.get("led_state") == "on" else 0
-        total += 1 if self.state.get("rgb_state") == "on" else 0
+        total += 1 if self._is_rgb_on() else 0
         total += 1 if (self.state.get("fan_rpm") or 0) > 0 else 0
         for house_id, peer in self._peer_state.items():
             last_seen = self._peer_last_seen.get(house_id)
@@ -93,6 +93,7 @@ class Handler:
         return total
 
     def _can_turn_on(self, label, already_on):
+        print("in can turn on")
         if already_on:
             return True
         if self._active_total() >= MAX_ACTIVE_PERIPHERALS:
@@ -103,16 +104,20 @@ class Handler:
     def _update_peer_state(self, house_id, payload):
         self._peer_state[house_id] = {
             "led_on": payload.get("led_state") == "on",
-            "rgb_on": payload.get("rgb_state") == "on",
+            "rgb_on": payload.get("rgb_state") != "off",
             "fan_on": (payload.get("fan_rpm") or 0) > 0,
         }
         self._peer_last_seen[house_id] = ticks_ms()
 
+    def _is_rgb_on(self):
+        return self.state.get("rgb_state", "off") != "off"
+
     def set_rgb_state(self, state):
+        print("in rgb state")
         if state == "on":
-            already_on = self.state.get("rgb_state") == "on"
+            already_on = self._is_rgb_on()
             if not self._can_turn_on("RGB", already_on):
-                return
+                return False
             self.neo_pixel[0] = [100, 100, 100]
             self.neo_pixel.write()
         elif state == "off":
@@ -120,29 +125,55 @@ class Handler:
             self.neo_pixel.write()
         else:
             print("Unknown rgb state:", state)
-            return
+            return False
 
         self.state["rgb_state"] = state
         self._emit_state()
+        return True
+
+    def set_rgb_color(self, color):
+        print("in rgb color")
+        if color == "red":
+            rgb = [100, 0, 0]
+        elif color == "green":
+            rgb = [0, 100, 0]
+        elif color == "blue":
+            rgb = [0, 0, 100]
+        else:
+            print("Unknown rgb color:", color)
+            return False
+
+        already_on = self._is_rgb_on()
+        if not self._can_turn_on("RGB", already_on):
+            return False
+
+        self.neo_pixel[0] = rgb
+        self.neo_pixel.write()
+        self.state["rgb_state"] = color
+        self._emit_state()
+        return True
 
     def set_led_state(self, state):
+        print("in led state")
         if state == "toggle":
             target_state = "off" if self.led.value() else "on"
         elif state in ("on", "off"):
             target_state = state
         else:
             print("Unknown led state:", state)
-            return
+            return False
 
         already_on = self.state.get("led_state") == "on"
         if target_state == "on" and not self._can_turn_on("LED", already_on):
-            return
+            return False
 
         self.led.value(1 if target_state == "on" else 0)
         self.state["led_state"] = "on" if self.led.value() else "off"
         self._emit_state()
+        return True
 
     def set_fan_state(self, state):
+        print("in fan state")
         if state == "toggle":
             target_state = "off" if (self.state.get("fan_rpm") or 0) > 0 else "on"
         elif state in ("on", "off"):
@@ -214,9 +245,14 @@ class Handler:
 
             if peripheral == "rgb":
                 if task == "on":
-                    self.set_rgb_state("on")
+                    if self.set_rgb_state("on"):
+                        self._set_display_override("CMD RGB", "ON")
                 elif task == "off":
-                    self.set_rgb_state("off")
+                    if self.set_rgb_state("off"):
+                        self._set_display_override("CMD RGB", "OFF")
+                elif task in ("red", "green", "blue"):
+                    if self.set_rgb_color(task):
+                        self._set_display_override("CMD RGB", task.upper())
                 else:
                     print("Unknown task:", task)
                 return
@@ -270,11 +306,15 @@ class Handler:
             
             if peripheral == "led":
                 if task == "on":
-                    self.set_led_state("on")
+                    if self.set_led_state("on"):
+                        self._set_display_override("CMD LED", "ON")
                 elif task == "off":
-                    self.set_led_state("off")
+                    if self.set_led_state("off"):
+                        self._set_display_override("CMD LED", "OFF")
                 elif task == "toggle":
-                    self.set_led_state("toggle")
+                    if self.set_led_state("toggle"):
+                        state_label = "ON" if self.state.get("led_state") == "on" else "OFF"
+                        self._set_display_override("CMD LED", state_label)
                 else:
                     print("Unknown task:", task)
                 return
@@ -299,10 +339,11 @@ class Handler:
         self._udp_mode_getter = fn
 
     def _emit_state(self):
-        try:
-            ntptime.settime()
-        except OSError as e:
-            print("NTP sync failed:", e)
+        if not self._udp_mode_getter or not self._udp_mode_getter():
+            try:
+                ntptime.settime()
+            except OSError as e:
+                print("NTP sync failed:", e)
         self.state["ts"] = int((time.time() + 946684800) * 1000)
         wlan = network.WLAN(network.STA_IF)
         self.state["rssi"] = wlan.status("rssi") if wlan.isconnected() else None

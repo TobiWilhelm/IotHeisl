@@ -98,7 +98,7 @@ while True:
     if use_udp:
         if not commandHandler.display_override_active(now):
             displayWriter.write_lines("house" + config.HOUSEID + " " + "Mode:","UDP local")
-        topic, payload, addr = udp.recv_once(commandHandler.handle_messages)
+        udp.recv_once(commandHandler.handle_messages)
 
     btn_val = button1.value()
     if not button_pressed and btn_val == 0:
@@ -125,10 +125,7 @@ while True:
     state_age = ticks_diff(now, last_state_emit)
     if hb_age > 2000:
 
-        if use_udp:
-            commandHandler._emit_state()
-            # print("[HB][UDP] after", hb_age, "ms ->", topic, payload)
-        else:
+        if not use_udp:
             # print("[HB][MQTT] after", hb_age, "ms ->", topic, payload)
             if ticks_diff(now, last_tcp_check) > 3000:
                 last_tcp_check = now
@@ -137,14 +134,14 @@ while True:
                 else:
                     tcp_fail_count += 1
                     if tcp_fail_count >= 3:
-                        print("[MQTT] publish failed:", e)
+                        print("[MQTT] TCP check failed 3 times, switching to UDP")
                         mqtt.disconnect()
                         if mqtt_down_since is None:
                             mqtt_down_since = now
 
-            if state_age > 10000:
-                commandHandler._emit_state()
-                last_state_emit = now
+        if state_age > 10000:
+            commandHandler._emit_state()
+            last_state_emit = now
 
         last_heartbeat = now
 

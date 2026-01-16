@@ -48,13 +48,15 @@ class UdpMessenger:
     def publish_state(self, payload):
         topic = config.TOPIC_BASE + "/" +  config.HOUSEID + "/state"
         msg = "{};{}".format(topic, payload)
+        print("UDP publish " + msg)
         self.s.sendto(msg.encode(), (config.BROADCAST_IP, config.UDP_PORT))
         print("Sent:", msg)
-    def publish_status(self, payload):
-        topic = config.TOPIC_BASE + "/" +  config.HOUSEID + "/Status"
-        msg = "{};{}".format(topic, payload)
-        self.s.sendto(msg.encode(), (config.BROADCAST_IP, config.UDP_PORT))
-        print("Sent:", msg)
+
+    # def publish_status(self, payload):
+    #     topic = config.TOPIC_BASE + "/" +  config.HOUSEID + "/Status"
+    #     msg = "{};{}".format(topic, payload)
+    #     self.s.sendto(msg.encode(), (config.BROADCAST_IP, config.UDP_PORT))
+    #     print("Sent:", msg)
 
     def recv_once(self, handler):
         try:

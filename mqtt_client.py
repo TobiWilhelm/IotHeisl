@@ -34,8 +34,7 @@ class MqttLink:
         if self._cmd_handler:
             self._cmd_handler(t, m)
 
-    def connect(self, timeout_s=3):
-        print("connect mqtt")
+    def connect(self, timeout_s=1):
         self.client.set_callback(self._on_msg)
         self.client.connect(timeout=timeout_s)
         self.client.subscribe(self.topic_cmd)
